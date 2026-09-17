@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises";
+import { readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import {
   getPluginSettingsValues,
@@ -12,7 +12,15 @@ import type {
 } from "@get-bb/plugin-sdk";
 import { coerceStoredPluginSettingValue } from "@get-bb/plugin-sdk/internal/host-policy";
 import type { PluginSettingDescriptor as PublicPluginSettingDescriptor } from "@bb/server-contract";
-import { deleteSecretFile, writeSecretFile } from "@bb/secret-storage";
+import {
+  deletePluginKeychainSecret,
+  deletePluginKeychainSecrets,
+  deleteSecretFile,
+  inspectPluginKeychainSecret,
+  readPluginKeychainSecret,
+  writePluginKeychainSecret,
+  writeSecretFile,
+} from "@bb/secret-storage";
 
 export class PluginSettingsValidationError extends Error {
   constructor(message: string) {
@@ -37,11 +45,40 @@ function isSecret(descriptor: PluginSettingDescriptor): boolean {
   return descriptor.type === "string" && descriptor.secret === true;
 }
 
+export type PluginSecretBackend = "file" | "keychain";
+
+export function resolvePluginSecretBackend(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): PluginSecretBackend {
+  const configured = env.BB_PLUGIN_SECRET_BACKEND?.trim() || undefined;
+  if (configured === "file" && env.NODE_ENV === "test") return "file";
+  if (configured === "file") {
+    throw new Error("The file plugin secret backend is test-only");
+  }
+  if (configured !== undefined && configured !== "keychain") {
+    throw new Error(
+      `BB_PLUGIN_SECRET_BACKEND must be keychain or file, got ${configured}`,
+    );
+  }
+  if (configured === "keychain" && platform !== "darwin") {
+    throw new Error("The keychain plugin secret backend requires macOS");
+  }
+  if (configured === undefined && env.NODE_ENV === "test") return "file";
+  if (configured === "keychain" || platform === "darwin") return "keychain";
+  throw new Error(
+    "Plugin secret storage requires macOS Keychain in this personal build",
+  );
+}
+
 export async function readSecret(
   dataDir: string,
   pluginId: string,
   key: string,
 ): Promise<string | undefined> {
+  if (resolvePluginSecretBackend() === "keychain") {
+    return readPluginKeychainSecret({ dataDir, key, pluginId });
+  }
   try {
     return await readFile(secretFilePath(dataDir, pluginId, key), "utf8");
   } catch (error) {
@@ -50,6 +87,19 @@ export async function readSecret(
     if (code === "ENOENT") return undefined;
     throw error;
   }
+}
+
+export async function deletePluginSettingsSecrets(
+  dataDir: string,
+  pluginId: string,
+): Promise<void> {
+  if (resolvePluginSecretBackend() === "keychain") {
+    await deletePluginKeychainSecrets({ dataDir, pluginId });
+  }
+  await rm(pluginSecretsDir(dataDir, pluginId), {
+    recursive: true,
+    force: true,
+  });
 }
 
 interface PluginSettingsStoreArgs {
@@ -107,9 +157,23 @@ export async function writePluginSettingsUpdate(
     const descriptor = args.descriptors[key];
     if (!descriptor) continue;
     if (isSecret(descriptor)) {
-      const path = secretFilePath(args.dataDir, args.pluginId, key);
-      if (value === null) await deleteSecretFile(path);
-      else await writeSecretFile(path, value as string);
+      if (resolvePluginSecretBackend() === "keychain") {
+        const keychainArgs = {
+          dataDir: args.dataDir,
+          key,
+          pluginId: args.pluginId,
+        };
+        if (value === null) await deletePluginKeychainSecret(keychainArgs);
+        else
+          await writePluginKeychainSecret({
+            ...keychainArgs,
+            value: value as string,
+          });
+      } else {
+        const path = secretFilePath(args.dataDir, args.pluginId, key);
+        if (value === null) await deleteSecretFile(path);
+        else await writeSecretFile(path, value as string);
+      }
       continue;
     }
     rowUpdates[key] = value === null ? null : JSON.stringify(value);
@@ -135,15 +199,22 @@ function publicSettingDescriptor(
 export async function buildPluginSettingsView(
   args: PluginSettingsStoreArgs,
 ): Promise<PluginSettingsView> {
-  const effective = await readPluginSettingsValues(args);
+  const effective = readPluginSettingsValuesSync(args);
   const values: Record<string, unknown> = {};
   for (const [key, descriptor] of Object.entries(args.descriptors)) {
     if (isSecret(descriptor)) {
-      values[key] = {
-        set: await stat(secretFilePath(args.dataDir, args.pluginId, key))
-          .then(() => true)
-          .catch(() => false),
-      };
+      values[key] =
+        resolvePluginSecretBackend() === "keychain"
+          ? await inspectPluginKeychainSecret({
+              dataDir: args.dataDir,
+              key,
+              pluginId: args.pluginId,
+            })
+          : {
+              set: await stat(secretFilePath(args.dataDir, args.pluginId, key))
+                .then(() => true)
+                .catch(() => false),
+            };
     } else if (effective[key] !== undefined) {
       values[key] = effective[key];
     }

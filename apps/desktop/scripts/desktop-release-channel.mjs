@@ -5,12 +5,16 @@ export function resolveDesktopReleaseChannel(env) {
   if (rawChannel === undefined || rawChannel.length === 0) {
     return "latest";
   }
-  if (rawChannel === "latest" || rawChannel === "nightly") {
+  if (
+    rawChannel === "latest" ||
+    rawChannel === "nightly" ||
+    rawChannel === "personal"
+  ) {
     return rawChannel;
   }
 
   throw new Error(
-    `${DESKTOP_RELEASE_CHANNEL_ENV_NAME} must be latest or nightly, got ${rawChannel}.`,
+    `${DESKTOP_RELEASE_CHANNEL_ENV_NAME} must be latest or nightly (or personal), got ${rawChannel}.`,
   );
 }
 
@@ -28,6 +32,21 @@ export function resolveDesktopBuildPlatform(nodePlatform) {
 }
 
 export function createDesktopReleaseConfig(channel) {
+  if (channel === "personal") {
+    return {
+      appId: "dev.bb.desktop.personal",
+      applicationName: "bb Personal",
+      artifactName: "bb-personal-${version}-${arch}.${ext}",
+      iconFileName: "icon.png",
+      linuxExecutableName: "bb-personal",
+      macIconPath: "assets/icon.icns",
+      releaseTag: "desktop-personal",
+      updateMetadataFileNames: {
+        linux: "personal-linux.yml",
+        macos: "personal-mac.yml",
+      },
+    };
+  }
   if (channel === "nightly") {
     return {
       appId: "dev.bb.desktop.nightly",

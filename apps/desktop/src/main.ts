@@ -438,7 +438,10 @@ function readDesktopAboutFacts(applicationName: string): DesktopAboutFacts {
   return {
     applicationName,
     buildDate: process.env.BB_DESKTOP_BUILD_DATE ?? "",
-    channel: DESKTOP_RELEASE_CHANNEL,
+    channel:
+      DESKTOP_RELEASE_CHANNEL === "personal"
+        ? "latest"
+        : DESKTOP_RELEASE_CHANNEL,
     commit: process.env.BB_DESKTOP_COMMIT ?? "",
     electronVersion: process.versions.electron,
     osArch: arch(),
@@ -580,11 +583,12 @@ const desktopLogger: DesktopAutoUpdateLogger = {
 function resolveDataDirFromEnv(args: ResolveDataDirFromEnvArgs): string {
   const rawDataDir = args.env.BB_DATA_DIR?.trim();
   if (rawDataDir === undefined || rawDataDir.length === 0) {
-    return join(args.homeDir, ".bb");
+    return join(
+      args.homeDir,
+      DESKTOP_RELEASE_CHANNEL === "personal" ? ".bb-personal" : ".bb",
+    );
   }
-  if (rawDataDir === "~") {
-    return args.homeDir;
-  }
+  if (rawDataDir === "~") return args.homeDir;
   if (rawDataDir.startsWith("~/")) {
     return resolve(args.homeDir, rawDataDir.slice(2));
   }
@@ -1963,12 +1967,19 @@ function registerDesktopBrowserWindowLifecycle({
 async function spawnOwnedRuntime(
   args: StartOwnedRuntimeArgs,
 ): Promise<OwnedRuntime> {
+  if (builtinDataDir === null) {
+    throw new Error("Built-in data directory is not initialized");
+  }
   const bbProcess = startBbAppProcess({
     bridgePath: args.bridgePath,
     cwd: homedir(),
     env: {
       ...process.env,
       [APP_SURFACE_ENV_NAME]: APP_SURFACE_DESKTOP,
+      BB_DATA_DIR: builtinDataDir,
+      ...(DESKTOP_RELEASE_CHANNEL === "personal"
+        ? { BB_PLUGIN_SECRET_BACKEND: "keychain" }
+        : {}),
     },
     logLineLimit: PROCESS_LOG_LINE_LIMIT,
     runtime: resolveBbAppProcessRuntime({
@@ -2464,7 +2475,10 @@ async function runDesktopApp(): Promise<void> {
     platform: desktopPlatform,
   });
   desktopUpdateService = createDesktopUpdateService({
-    channel: DESKTOP_RELEASE_CHANNEL,
+    channel:
+      DESKTOP_RELEASE_CHANNEL === "personal"
+        ? "latest"
+        : DESKTOP_RELEASE_CHANNEL,
     currentVersion: desktopVersion,
     enabled:
       desktopUpdateSupport.versionCheck &&

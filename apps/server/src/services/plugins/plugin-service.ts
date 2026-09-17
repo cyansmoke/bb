@@ -125,6 +125,7 @@ import {
 import { readPluginLogTail } from "./plugin-log.js";
 import {
   buildPluginSettingsView,
+  deletePluginSettingsSecrets,
   pluginSecretsDir,
   readPluginSettingsValues,
   writePluginSettingsUpdate,
@@ -1510,6 +1511,9 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
       return withPluginOperationLock(REGISTRATION_MUTATION_KEY, async () => {
         const row = getInstalledPlugin(deps.db, id);
         await withLifecycleLock(id, () => disposeOne(id));
+        if (row) {
+          await deletePluginSettingsSecrets(deps.dataDir, id);
+        }
         statuses.delete(id);
         handlerStats.delete(id);
         agentToolProblems.delete(id);
@@ -1528,10 +1532,6 @@ export function createPluginService(deps: PluginServiceDeps): PluginService {
           forgetMutableRoot(row.rootDir);
           deletePluginSchedules(deps.db, id);
           deleteAllPluginSettings(deps.db, id);
-          await rm(pluginSecretsDir(deps.dataDir, id), {
-            recursive: true,
-            force: true,
-          });
           logger.info(
             `plugin ${id} removed from ${row.source}; its settings, secrets, and schedules were deleted`,
           );

@@ -13,6 +13,7 @@ const NODE_ESM_REQUIRE_BANNER = [
 
 const NATIVE_EXTERNAL_PACKAGES = [
   "@parcel/watcher",
+  "@napi-rs/keyring",
   "better-sqlite3",
   "bufferutil",
   "fsevents",

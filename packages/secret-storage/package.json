@@ -15,6 +15,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config vitest.config.ts"
   },
+  "dependencies": {
+    "@napi-rs/keyring": "2.1.0"
+  },
   "devDependencies": {
     "@bb/tsconfig": "workspace:*",
     "@types/node": "^22.0.0",
