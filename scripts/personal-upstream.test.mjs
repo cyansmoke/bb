@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { afterEach, test } from "node:test";
+import { escapeWorkflowCommandProperty } from "./personal-upstream.mjs";
 
 const tempDirs = [];
 const scriptPath = new URL("./personal-upstream.mjs", import.meta.url).pathname;
@@ -76,9 +77,76 @@ test("lists conflicting paths and leaves the repository untouched", async () => 
   const result = runScript(cwd, "check", "upstream-conflict");
 
   assert.equal(result.status, CONFLICT_EXIT_CODE);
-  assert.match(result.stderr, /conflicts:\n- shared\.txt/);
+  assert.equal(
+    result.stderr,
+    "upstream-conflict: ahead 1, behind 1; conflicts:\n- shared.txt\n",
+  );
   assert.equal(git(cwd, ["rev-parse", "HEAD"]), before);
   assert.equal(git(cwd, ["status", "--porcelain"]), "");
+});
+
+test("refuses apply whenever the working tree is dirty", async () => {
+  const cwd = await fixture();
+  const before = git(cwd, ["rev-parse", "HEAD"]);
+  await writeFile(join(cwd, "personal.txt"), "dirty\n");
+
+  const result = runScript(cwd, "apply", "HEAD");
+
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr, "Refusing to update a dirty working tree\n");
+  assert.equal(git(cwd, ["rev-parse", "HEAD"]), before);
+  assert.equal(await readFile(join(cwd, "personal.txt"), "utf8"), "dirty\n");
+});
+
+test("refuses a conflicting apply without starting a merge", async () => {
+  const cwd = await fixture();
+  git(cwd, ["switch", "-c", "upstream-conflict"]);
+  await writeFile(join(cwd, "shared.txt"), "upstream\n");
+  git(cwd, ["commit", "-am", "upstream"]);
+  git(cwd, ["switch", "personal"]);
+  await writeFile(join(cwd, "shared.txt"), "personal\n");
+  git(cwd, ["commit", "-am", "personal"]);
+  const before = git(cwd, ["rev-parse", "HEAD"]);
+
+  const result = runScript(cwd, "apply", "upstream-conflict");
+
+  assert.equal(result.status, CONFLICT_EXIT_CODE);
+  assert.equal(git(cwd, ["rev-parse", "HEAD"]), before);
+  assert.equal(git(cwd, ["status", "--porcelain"]), "");
+  assert.notEqual(
+    spawnSync("git", ["rev-parse", "-q", "--verify", "MERGE_HEAD"], {
+      cwd,
+      encoding: "utf8",
+    }).status,
+    0,
+  );
+});
+
+test("fails closed when merge-tree cannot compare the histories", async () => {
+  const cwd = await fixture();
+  git(cwd, ["switch", "--orphan", "unrelated"]);
+  await Promise.all(
+    ["shared.txt", "personal.txt", "upstream.txt"].map((name) =>
+      rm(join(cwd, name), { force: true }),
+    ),
+  );
+  await writeFile(join(cwd, "unrelated.txt"), "unrelated\n");
+  git(cwd, ["add", "."]);
+  git(cwd, ["commit", "-m", "unrelated"]);
+  git(cwd, ["switch", "personal"]);
+
+  const result = runScript(cwd, "check", "unrelated");
+
+  assert.equal(result.status, 1);
+  assert.doesNotMatch(result.stdout, /merge is clean/);
+  assert.match(result.stderr, /unrelated|without any paths/i);
+});
+
+test("escapes every GitHub workflow command property delimiter", () => {
+  assert.equal(
+    escapeWorkflowCommandProperty("a,b:c%\r\n"),
+    "a%2Cb%3Ac%25%0D%0A",
+  );
 });
 
 test("applies a clean upstream update as a merge commit", async () => {

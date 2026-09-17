@@ -2,6 +2,7 @@ import { appendFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 
 const CONFLICT_EXIT_CODE = 2;
+const MERGE_CONFLICT_STATUS = 1;
 
 function optionValue(args, name, fallback) {
   const index = args.indexOf(name);
@@ -44,6 +45,15 @@ function conflictPaths(output) {
   return [...new Set(paths)].sort();
 }
 
+export function escapeWorkflowCommandProperty(value) {
+  return value
+    .replaceAll("%", "%25")
+    .replaceAll("\r", "%0D")
+    .replaceAll("\n", "%0A")
+    .replaceAll(":", "%3A")
+    .replaceAll(",", "%2C");
+}
+
 function countRange(cwd, range) {
   return Number.parseInt(
     runGit(["rev-list", "--count", range], { cwd }).stdout.trim(),
@@ -73,10 +83,20 @@ export async function inspectUpstream(args) {
   if (merge.status === 0) {
     return { ahead, behind, conflicts: [], target };
   }
+  if (merge.status !== MERGE_CONFLICT_STATUS) {
+    const detail = `${merge.stdout ?? ""}${merge.stderr ?? ""}`.trim();
+    throw new Error(
+      detail || `git merge-tree failed with status ${merge.status}`,
+    );
+  }
+  const conflicts = conflictPaths(merge.stdout);
+  if (conflicts.length === 0) {
+    throw new Error("git merge-tree reported conflicts without any paths");
+  }
   return {
     ahead,
     behind,
-    conflicts: conflictPaths(merge.stdout),
+    conflicts,
     target,
   };
 }
@@ -94,6 +114,12 @@ export async function main(argv, options = {}) {
   if (target === undefined || target.length === 0) {
     throw new Error("--upstream requires a value");
   }
+  if (mode === "apply") {
+    const dirty = runGit(["status", "--porcelain"], { cwd }).stdout.trim();
+    if (dirty.length > 0) {
+      throw new Error("Refusing to update a dirty working tree");
+    }
+  }
   if (!argv.includes("--no-fetch")) {
     const fetchTarget = parseFetchTarget(target);
     runGit(["fetch", "--prune", fetchTarget.remote, fetchTarget.branch], {
@@ -109,7 +135,7 @@ export async function main(argv, options = {}) {
       process.stderr.write(`- ${path}\n`);
       if (env.GITHUB_ACTIONS === "true") {
         process.stderr.write(
-          `::error file=${path.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A")}::Conflicts with ${target}\n`,
+          `::error file=${escapeWorkflowCommandProperty(path)}::Conflicts with ${target}\n`,
         );
       }
     }
@@ -132,10 +158,6 @@ export async function main(argv, options = {}) {
     env,
   );
   if (mode === "apply" && result.behind > 0) {
-    const dirty = runGit(["status", "--porcelain"], { cwd }).stdout.trim();
-    if (dirty.length > 0) {
-      throw new Error("Refusing to update a dirty working tree");
-    }
     runGit(["merge", "--no-edit", "--no-ff", target], {
       cwd,
       inherit: true,
