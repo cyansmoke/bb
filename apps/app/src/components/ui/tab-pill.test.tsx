@@ -96,18 +96,20 @@ describe("TabPill", () => {
     ).toBe(true);
   });
 
-  it("separates an enlarged coarse-pointer close target from the label", () => {
+  it("closes from the leading control without selecting the tab", () => {
+    const onClose = vi.fn();
+    const onSelect = vi.fn();
     render(
       <TabPill
         label="rabbits.md"
         title="rabbits.md"
         isActive
-        onSelect={vi.fn()}
+        onSelect={onSelect}
         leadingVisual={<span aria-hidden>file</span>}
         enlargeCloseTargetOnCoarsePointer
         closeAction={{
           closeLabel: "Close rabbits.md",
-          onClose: vi.fn(),
+          onClose,
         }}
       />,
     );
@@ -115,6 +117,8 @@ describe("TabPill", () => {
     const tab = screen.getByRole("button", { name: "rabbits.md" });
     const close = screen.getByRole("button", { name: "Close rabbits.md" });
     expect(tab.nextElementSibling).toBe(close);
-    expect(close.classList.contains("absolute")).toBe(false);
+    fireEvent.click(close);
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });
