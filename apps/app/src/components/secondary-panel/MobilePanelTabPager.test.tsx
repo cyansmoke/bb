@@ -4,7 +4,10 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MobilePanelTabPager } from "./MobilePanelTabPager";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 function createTabs() {
   return ["Info", "README.md", "package.json"].map((label) => ({
@@ -79,6 +82,15 @@ describe("MobilePanelTabPager", () => {
     });
     fireEvent.click(close);
     expect(tabs[1].onClose).toHaveBeenCalledOnce();
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    fireEvent.touchStart(close, { touches: [{ clientX: 160, clientY: 20 }] });
+    fireEvent.touchEnd(close, {
+      changedTouches: [{ clientX: 80, clientY: 25 }],
+    });
+    clock.mockReturnValue(now + 501);
+    fireEvent.click(close);
+    expect(tabs[1].onClose).toHaveBeenCalledTimes(2);
   });
 
   it("ignores vertical drags and short movements", () => {
