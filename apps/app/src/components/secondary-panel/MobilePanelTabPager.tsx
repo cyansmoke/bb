@@ -6,6 +6,7 @@ import { TabPill } from "@/components/ui/tab-pill";
 interface MobilePanelTab {
   id: string;
   label: string;
+  ariaLabel: string;
   leadingVisual: ReactNode;
   onSelect: () => void;
   onClose: (() => void) | null;
@@ -78,6 +79,7 @@ export function MobilePanelTabPager({
         {activeTab ? (
           <TabPill
             label={activeTab.label}
+            ariaLabel={activeTab.ariaLabel}
             leadingVisual={activeTab.leadingVisual}
             title={activeTab.label}
             isActive

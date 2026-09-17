@@ -13,6 +13,7 @@ function createTabs() {
   return ["Info", "README.md", "package.json"].map((label) => ({
     id: label,
     label,
+    ariaLabel: label,
     leadingVisual: null,
     onSelect: vi.fn(),
     onClose: label === "Info" ? null : vi.fn(),

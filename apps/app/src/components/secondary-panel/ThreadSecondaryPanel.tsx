@@ -598,6 +598,7 @@ function ThreadSecondaryPanelContent({
             ...fixedSurfaceTabs.map((tab) => ({
               id: tab.tab.id,
               label: tab.label,
+              ariaLabel: tab.ariaLabel,
               leadingVisual: tab.leadingVisual,
               onSelect: tab.onSelect,
               onClose: null,
@@ -605,6 +606,7 @@ function ThreadSecondaryPanelContent({
             ...visibleSurfaceTabs.map((tab) => ({
               id: tab.tab.id,
               label: tab.label,
+              ariaLabel: tab.label,
               leadingVisual: tab.leadingVisual,
               onSelect: tab.onSelect,
               onClose: tab.isPinned ? null : tab.onClose,
