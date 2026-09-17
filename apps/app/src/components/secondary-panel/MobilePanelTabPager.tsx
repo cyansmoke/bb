@@ -46,7 +46,7 @@ export function MobilePanelTabPager({
       </Button>
       <div
         className="min-w-0 flex-1 touch-pan-y overflow-hidden [&>div]:w-full [&>div>button:first-child]:w-full [&_[data-tab-pill-close]]:text-muted-foreground/70 [&_[data-tab-pill-close]_[data-icon-root]]:size-3.5"
-        onTouchStart={(event) => {
+        onTouchStartCapture={(event) => {
           suppressClickUntil.current = 0;
           const touch = event.touches[0];
           touchStart.current =
@@ -54,10 +54,10 @@ export function MobilePanelTabPager({
               ? { x: touch.clientX, y: touch.clientY }
               : null;
         }}
-        onTouchCancel={() => {
+        onTouchCancelCapture={() => {
           touchStart.current = null;
         }}
-        onTouchEnd={(event) => {
+        onTouchEndCapture={(event) => {
           const start = touchStart.current;
           touchStart.current = null;
           const touch = event.changedTouches[0];
