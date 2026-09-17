@@ -19,6 +19,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22.19.0
+          package-manager-cache: false
       - name: Test conflict detection
         run: node --test scripts/personal-upstream.test.mjs
       - name: Fetch upstream
