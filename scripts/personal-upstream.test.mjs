@@ -33,7 +33,15 @@ function runScript(cwd, mode, target) {
   return spawnSync(
     process.execPath,
     [scriptPath, mode, "--no-fetch", "--upstream", target],
-    { cwd, encoding: "utf8" },
+    {
+      cwd,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        GITHUB_ACTIONS: "false",
+        GITHUB_STEP_SUMMARY: "",
+      },
+    },
   );
 }
 
