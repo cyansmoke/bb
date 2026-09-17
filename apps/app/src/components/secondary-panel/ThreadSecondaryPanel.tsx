@@ -45,6 +45,7 @@ import {
   resolveConversationCollapseControl,
 } from "./panelToggleControlState";
 import { SecondaryPanelHostLayoutContext } from "./SecondaryPanelHostLayoutContext";
+import { MobilePanelTabPager } from "./MobilePanelTabPager";
 import { SecondaryPanelTabStrip } from "./SecondaryPanelTabStrip";
 import { ImageTabLightboxProvider } from "./ImageTabLightboxContext";
 import type {
@@ -569,6 +570,50 @@ function ThreadSecondaryPanelContent({
       (tab) => tab.isHidden !== true,
     );
     const hasActiveSurfaceTab = activeSurfaceTab !== undefined;
+    const newTabControl = showGroupNewTabButton ? (
+      <NewTabButton
+        ariaLabel={newTabAriaLabel}
+        onOpenNewTab={onOpenNewTab}
+        shortcut={newTabShortcut}
+        usesDesktopChrome={usesDesktopChrome}
+      />
+    ) : reserveNewTabButton ? (
+      <div
+        aria-hidden
+        data-new-tab-control-reserved=""
+        className={cn(
+          SECONDARY_PANEL_CHROME_ICON_BUTTON_CLASS,
+          usesDesktopChrome && MACOS_WINDOW_NO_DRAG_CLASS,
+        )}
+      />
+    ) : null;
+
+    if (renderAsDrawer) {
+      return (
+        <MobilePanelTabPager
+          activeTabId={
+            activeSurfaceTabId ?? activeSurfaceFixedTab?.tab.id ?? null
+          }
+          tabs={[
+            ...fixedSurfaceTabs.map((tab) => ({
+              id: tab.tab.id,
+              label: tab.label,
+              leadingVisual: tab.leadingVisual,
+              onSelect: tab.onSelect,
+              onClose: null,
+            })),
+            ...visibleSurfaceTabs.map((tab) => ({
+              id: tab.tab.id,
+              label: tab.label,
+              leadingVisual: tab.leadingVisual,
+              onSelect: tab.onSelect,
+              onClose: tab.isPinned ? null : tab.onClose,
+            })),
+          ]}
+          newTabControl={newTabControl}
+        />
+      );
+    }
 
     return (
       <>
@@ -611,23 +656,7 @@ function ThreadSecondaryPanelContent({
           usesDesktopChrome={usesDesktopChrome}
           isPanelOpen={isOpen}
         />
-        {showGroupNewTabButton ? (
-          <NewTabButton
-            ariaLabel={newTabAriaLabel}
-            onOpenNewTab={onOpenNewTab}
-            shortcut={newTabShortcut}
-            usesDesktopChrome={usesDesktopChrome}
-          />
-        ) : reserveNewTabButton ? (
-          <div
-            aria-hidden
-            data-new-tab-control-reserved=""
-            className={cn(
-              SECONDARY_PANEL_CHROME_ICON_BUTTON_CLASS,
-              usesDesktopChrome && MACOS_WINDOW_NO_DRAG_CLASS,
-            )}
-          />
-        ) : null}
+        {newTabControl}
       </>
     );
   };
