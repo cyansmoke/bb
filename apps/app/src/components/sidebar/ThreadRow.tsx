@@ -325,7 +325,7 @@ export function ThreadStatusGlyph({
   size = "default",
 }: ThreadStatusGlyphProps) {
   const iconSizeClass =
-    size === "compact" ? "size-4" : COARSE_POINTER_ICON_SIZE_CLASS;
+    size === "compact" ? "size-3.5" : COARSE_POINTER_ICON_SIZE_CLASS;
   const kind = resolveThreadListIndicator({
     hasPendingInteraction,
     hasUnsubmittedDraft,
