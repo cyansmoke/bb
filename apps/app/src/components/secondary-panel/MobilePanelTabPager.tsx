@@ -23,7 +23,7 @@ export function MobilePanelTabPager({
   newTabControl,
 }: MobilePanelTabPagerProps) {
   const touchStart = useRef<{ x: number; y: number } | null>(null);
-  const suppressClick = useRef(false);
+  const suppressClickUntil = useRef(0);
   const activeIndex = tabs.findIndex((tab) => tab.id === activeTabId);
   const activeTab = tabs[activeIndex];
   const previousTab = tabs[activeIndex - 1];
@@ -47,7 +47,7 @@ export function MobilePanelTabPager({
       <div
         className="min-w-0 flex-1 touch-pan-y overflow-hidden [&>div]:w-full [&>div>button:first-child]:w-full [&_[data-tab-pill-close]]:text-muted-foreground/70 [&_[data-tab-pill-close]_[data-icon-root]]:size-3.5"
         onTouchStart={(event) => {
-          suppressClick.current = false;
+          suppressClickUntil.current = 0;
           const touch = event.touches[0];
           touchStart.current =
             event.touches.length === 1 && touch
@@ -65,12 +65,12 @@ export function MobilePanelTabPager({
           const dx = touch.clientX - start.x;
           const dy = touch.clientY - start.y;
           if (Math.abs(dx) < 30 || Math.abs(dx) <= Math.abs(dy)) return;
-          suppressClick.current = true;
+          suppressClickUntil.current = Date.now() + 500;
           (dx < 0 ? nextTab : previousTab)?.onSelect();
         }}
         onClickCapture={(event) => {
-          if (!suppressClick.current) return;
-          suppressClick.current = false;
+          if (Date.now() >= suppressClickUntil.current) return;
+          suppressClickUntil.current = 0;
           event.preventDefault();
           event.stopPropagation();
         }}
