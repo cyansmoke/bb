@@ -9,8 +9,8 @@ or public access controls.
 ## Pinned base and license
 
 - Upstream: `https://github.com/get-bb/bb.git`
-- Pinned base: `3e9bef842539d5a1dd83d648fe9d5a7a20de4397`
-- Base date checked: 2026-09-17
+- Pinned base: `c1a64f4b49b0659e92a7aa4434e79d062b3e814f`
+- Base date checked: 2026-09-19
 - License: MIT, copyright 2026 Michael Yong
 - Local branch: `personal/keychain-mvp`
 
