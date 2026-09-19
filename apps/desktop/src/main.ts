@@ -209,6 +209,17 @@ import { parseDesktopSystemConfig } from "./desktop-system-config.js";
 import { ensurePackagedUserShellPath } from "./desktop-shell-path.js";
 import { resolveDesktopReloadShortcut } from "./desktop-reload-shortcut.js";
 import {
+  formatPersonalImportReport,
+  openPersonalImportProgressWindow,
+  openPersonalOnboardingDialog,
+} from "./personal-onboarding-dialog.js";
+import {
+  inspectPersonalProfileImport,
+  performPersonalProfileImport,
+  readPersonalOnboardingState,
+  writePersonalOnboardingState,
+} from "./personal-profile-import.js";
+import {
   createLogTailer,
   createLogLineBuffer,
   createLogViewerViewUrl,
@@ -238,6 +249,7 @@ import {
 } from "./types.js";
 
 const OWNED_RUNTIME_STOP_TIMEOUT_MS = 6_000;
+const PERSONAL_ONBOARDING_STATE_FILE_NAME = "personal-onboarding.json";
 const OWNED_RUNTIME_KILL_TIMEOUT_MS = 1_000;
 const FOREIGN_RUNTIME_STOP_TIMEOUT_MS = 15_000;
 const FOREIGN_RUNTIME_KILL_TIMEOUT_MS = 3_000;
@@ -485,8 +497,100 @@ function getCurrentDesktopInfo(): BbDesktopInfo | null {
   }
   return {
     ...info,
+    buildCommit: process.env.BB_DESKTOP_COMMIT?.trim() || null,
+    distribution:
+      DESKTOP_RELEASE_CHANNEL === "personal" ? "personal" : "official",
     serverDaemonLogsAvailable: shouldEnableServerDaemonLogsMenu(),
+    upstreamCommit: process.env.BB_PERSONAL_UPSTREAM_COMMIT?.trim() || null,
   };
+}
+
+async function showPersonalImportReport(
+  report: Awaited<ReturnType<typeof performPersonalProfileImport>>,
+): Promise<void> {
+  await dialog.showMessageBox({
+    buttons: ["Continue"],
+    detail: formatPersonalImportReport(report),
+    message: "Your personal profile is ready",
+    type: "info",
+  });
+}
+
+async function showPersonalImportError(error: unknown): Promise<void> {
+  await dialog.showMessageBox({
+    buttons: ["Back"],
+    detail:
+      error instanceof Error
+        ? error.message
+        : "The import failed for an unknown reason.",
+    message: "The official profile was not changed",
+    type: "error",
+  });
+}
+
+async function runPersonalFirstLaunch(args: {
+  appVersion: string;
+  dataDir: string;
+  isPackaged: boolean;
+  preloadPath: string;
+  userDataPath: string;
+}): Promise<boolean> {
+  if (DESKTOP_RELEASE_CHANNEL !== "personal" || !args.isPackaged) {
+    return true;
+  }
+  const statePath = join(
+    args.userDataPath,
+    PERSONAL_ONBOARDING_STATE_FILE_NAME,
+  );
+  if ((await readPersonalOnboardingState(statePath)) !== null) {
+    return true;
+  }
+  const sourceDataDir = join(homedir(), ".bb");
+  for (;;) {
+    const inspection = await inspectPersonalProfileImport({
+      sourceDataDir,
+      targetDataDir: args.dataDir,
+    });
+    const choice = await openPersonalOnboardingDialog({
+      inspection,
+      parentWindow: null,
+      preloadPath: args.preloadPath,
+    });
+    if (choice === "quit") {
+      return false;
+    }
+    if (choice === "fresh") {
+      await writePersonalOnboardingState({
+        outcome: "fresh",
+        path: statePath,
+        report: null,
+      });
+      return true;
+    }
+    const progress = openPersonalImportProgressWindow({
+      parentWindow: null,
+      preloadPath: args.preloadPath,
+    });
+    try {
+      const report = await performPersonalProfileImport({
+        appVersion: args.appVersion,
+        onProgress: (update) => progress.update(update),
+        sourceDataDir,
+        targetDataDir: args.dataDir,
+      });
+      progress.close();
+      await writePersonalOnboardingState({
+        outcome: "imported",
+        path: statePath,
+        report,
+      });
+      await showPersonalImportReport(report);
+      return true;
+    } catch (error) {
+      progress.close();
+      await showPersonalImportError(error);
+    }
+  }
 }
 
 function resolveApplicationWindow(
@@ -2373,6 +2477,11 @@ async function runDesktopApp(): Promise<void> {
     "dist",
     "server-url-dialog-preload.cjs",
   );
+  const personalOnboardingPreloadPath = join(
+    paths.appPath,
+    "dist",
+    "personal-onboarding-preload.cjs",
+  );
   const serverUrl = resolveDesktopServerUrl({ env: process.env });
   builtinServerUrl = serverUrl;
   desktopBridgePath = bridgePath;
@@ -2395,6 +2504,10 @@ async function runDesktopApp(): Promise<void> {
     path: resolvedLogViewerPreloadPath,
   });
   assertPathExists({ label: "preload script", path: preloadPath });
+  assertPathExists({
+    label: "personal onboarding preload script",
+    path: personalOnboardingPreloadPath,
+  });
   assertPathExists({
     label: "browser page preload script",
     path: browserPagePreloadPath,
@@ -2695,6 +2808,18 @@ async function runDesktopApp(): Promise<void> {
     userDataPath,
   });
   installLogViewerIpcHandlers();
+
+  const continueStartup = await runPersonalFirstLaunch({
+    appVersion: desktopVersion,
+    dataDir,
+    isPackaged: paths.isPackaged,
+    preloadPath: personalOnboardingPreloadPath,
+    userDataPath,
+  });
+  if (!continueStartup) {
+    app.quit();
+    return;
+  }
 
   refreshApplicationMenu();
   await loadLoadingView();

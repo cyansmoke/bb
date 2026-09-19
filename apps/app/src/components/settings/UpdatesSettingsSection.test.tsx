@@ -1451,6 +1451,56 @@ The canonical release summary.
     expect(sdk.system.version).not.toHaveBeenCalled();
   });
 
+  it("shows the conflict-aware maintenance flow for bb Personal", async () => {
+    const desktopInfo: BbDesktopInfo = {
+      buildCommit: "1234567890abcdef",
+      distribution: "personal",
+      downloadState: "idle",
+      lastCheckedAt: null,
+      latestVersion: null,
+      pendingVersion: null,
+      platform: "macos",
+      updateAvailable: false,
+      updateDownloaded: false,
+      upstreamCommit: "fedcba0987654321",
+      version: "0.43.3-personal",
+    };
+    const checkForUpdates = vi.fn().mockResolvedValue(desktopInfo);
+    useDesktopUpdateInfoMock.mockReturnValue({
+      desktopApi: { checkForUpdates } as unknown as BbDesktopApi,
+      desktopInfo,
+      isDesktop: true,
+    });
+    useUpdateInventoryMock.mockReturnValue(makeInventory({ desktopInfo }));
+
+    renderSection();
+
+    expect(
+      screen.getByRole("heading", { name: "bb Personal updates" }),
+    ).toBeDefined();
+    expect(screen.getByText("1234567890ab")).toBeDefined();
+    expect(screen.getByText("fedcba098765")).toBeDefined();
+    expect(screen.getByText("bb Personal")).toBeDefined();
+    expect(screen.getByText("Conflict-aware source update")).toBeDefined();
+    expect(screen.getByText("pnpm personal:update:check")).toBeDefined();
+    expect(screen.getByText("pnpm personal:update:apply")).toBeDefined();
+    expect(screen.queryByRole("button", { name: /Relaunch bb/ })).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Compatibility checks" }),
+    );
+    expect(openUrlInExternalBrowserMock).toHaveBeenCalledWith(
+      "https://github.com/cyansmoke/bb/actions/workflows/personal-upstream-check.yml",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open the personal fork" }),
+    );
+    expect(openUrlInExternalBrowserMock).toHaveBeenCalledWith(
+      "https://github.com/cyansmoke/bb",
+    );
+    await waitFor(() => expect(checkForUpdates).toHaveBeenCalledOnce());
+  });
+
   it("does not claim a legacy desktop shell is downloading an available update", () => {
     const desktopInfo: BbDesktopInfo = {
       lastCheckedAt: null,

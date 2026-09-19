@@ -98,6 +98,11 @@ import { STARTUP_RETRY_CHANNEL } from "./local-view.js";
 
 function createInitialDesktopInfo(): BbDesktopInfo {
   return {
+    buildCommit: process.env.BB_DESKTOP_COMMIT?.trim() || null,
+    distribution:
+      process.env.BB_DESKTOP_RELEASE_CHANNEL === "personal"
+        ? "personal"
+        : "official",
     downloadState: "idle",
     lastCheckedAt: null,
     latestVersion: null,
@@ -105,6 +110,7 @@ function createInitialDesktopInfo(): BbDesktopInfo {
     platform: resolveBbDesktopPlatform(process.platform),
     updateAvailable: false,
     updateDownloaded: false,
+    upstreamCommit: process.env.BB_PERSONAL_UPSTREAM_COMMIT?.trim() || null,
     version: getDesktopVersion(process.env.BB_DESKTOP_VERSION),
   };
 }
@@ -363,6 +369,12 @@ const bbBrowserApi: BbDesktopBrowserApi = {
 
 const bbDesktopApi: BbDesktopApi = {
   browser: bbBrowserApi,
+  get buildCommit() {
+    return currentInfo.buildCommit;
+  },
+  get distribution() {
+    return currentInfo.distribution;
+  },
   get lastCheckedAt() {
     return currentInfo.lastCheckedAt;
   },
@@ -381,6 +393,9 @@ const bbDesktopApi: BbDesktopApi = {
   },
   get updateDownloaded() {
     return currentInfo.updateDownloaded;
+  },
+  get upstreamCommit() {
+    return currentInfo.upstreamCommit;
   },
   version: currentInfo.version,
   checkForUpdates() {

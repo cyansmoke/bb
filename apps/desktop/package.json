@@ -47,6 +47,7 @@
     "@bb/config": "workspace:*",
     "@bb/desktop-contract": "workspace:*",
     "@bb/domain": "workspace:*",
+    "@bb/secret-storage": "workspace:*",
     "@bb/server-archive": "workspace:*",
     "@bb/server-contract": "workspace:*",
     "@bb/tsconfig": "workspace:*",

@@ -51,6 +51,25 @@ function readBuildCommit(env) {
   }
 }
 
+function readPersonalUpstreamCommit(env, channel) {
+  const injected = env.BB_PERSONAL_UPSTREAM_COMMIT?.trim() ?? "";
+  if (injected.length > 0) {
+    return injected;
+  }
+  if (channel !== "personal") {
+    return "";
+  }
+  try {
+    return execFileSync("git", ["rev-parse", "upstream/main"], {
+      cwd: packageRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
 function readBuildDate(env) {
   const injected = env.BB_DESKTOP_BUILD_DATE?.trim() ?? "";
   if (injected.length > 0) {
@@ -71,6 +90,10 @@ const pluginSdkVersion = readPackageVersion(
 );
 const desktopReleaseChannel = resolveDesktopReleaseChannel(process.env);
 const desktopCommit = readBuildCommit(process.env);
+const personalUpstreamCommit = readPersonalUpstreamCommit(
+  process.env,
+  desktopReleaseChannel,
+);
 const desktopBuildDate = readBuildDate(process.env);
 
 const commonOptions = {
@@ -80,6 +103,9 @@ const commonOptions = {
     "process.env.BB_DESKTOP_COMMIT": JSON.stringify(desktopCommit),
     "process.env.BB_DESKTOP_PLUGIN_SDK_VERSION":
       JSON.stringify(pluginSdkVersion),
+    "process.env.BB_PERSONAL_UPSTREAM_COMMIT": JSON.stringify(
+      personalUpstreamCommit,
+    ),
     "process.env.BB_DESKTOP_RELEASE_CHANNEL": JSON.stringify(
       desktopReleaseChannel,
     ),
@@ -95,7 +121,7 @@ await Promise.all([
   build({
     ...commonOptions,
     entryPoints: [resolve(packageRoot, "src", "main.ts")],
-    external: ["electron"],
+    external: ["electron", "@napi-rs/keyring"],
     format: "cjs",
     outfile: resolve(distDir, "main.js"),
   }),
@@ -135,6 +161,15 @@ await Promise.all([
     external: ["electron"],
     format: "cjs",
     outfile: resolve(distDir, "existing-server-dialog-preload.cjs"),
+  }),
+  build({
+    ...commonOptions,
+    entryPoints: [
+      resolve(packageRoot, "src", "personal-onboarding-preload.ts"),
+    ],
+    external: ["electron"],
+    format: "cjs",
+    outfile: resolve(distDir, "personal-onboarding-preload.cjs"),
   }),
   build({
     ...commonOptions,

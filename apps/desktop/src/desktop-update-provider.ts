@@ -23,7 +23,7 @@ export function createDesktopReleaseInfo(
       iconFileName: "icon.png",
       releaseTag: "desktop-personal",
       updateReleaseBaseUrl:
-        "https://github.com/get-bb/bb/releases/download/desktop-personal/",
+        "https://github.com/cyansmoke/bb/releases/download/desktop-personal/",
     };
   }
   const nightly = channel === "nightly";

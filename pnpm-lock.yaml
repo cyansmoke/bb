@@ -574,6 +574,9 @@ importers:
       '@bb/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@bb/secret-storage':
+        specifier: workspace:*
+        version: link:../../packages/secret-storage
       '@bb/server-archive':
         specifier: workspace:*
         version: link:../../packages/server-archive

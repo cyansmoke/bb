@@ -98,6 +98,9 @@ const EMPTY_PROVIDER_CLI_FAILURES: ReadonlyMap<
   ProviderCliInstallFailure
 > = new Map();
 const CHANGELOG_URL = "https://getbb.app/changelog";
+const PERSONAL_FORK_URL = "https://github.com/cyansmoke/bb";
+const PERSONAL_UPDATE_WORKFLOW_URL =
+  "https://github.com/cyansmoke/bb/actions/workflows/personal-upstream-check.yml";
 const CHANGELOG_STALE_TIME_MS = 5 * 60_000;
 const CHANGELOG_DISMISSED_VERSION_STORAGE_KEY =
   "bb.settings.updates.dismissed-changelog-version";
@@ -771,8 +774,24 @@ export function BbAppUpdateRows({
       desktopInfo.pendingVersion ?? desktopInfo.latestVersion;
     const latest = desktopInfo.updateAvailable ? pendingVersion : null;
     const name = (
-      <RowName name="bb app" current={desktopInfo.version} latest={latest} />
+      <RowName
+        name={
+          desktopInfo.distribution === "personal" ? "bb Personal" : "bb app"
+        }
+        current={desktopInfo.version}
+        latest={latest}
+      />
     );
+
+    if (desktopInfo.distribution === "personal") {
+      return row(
+        name,
+        <RowStateControl state="update-manually" />,
+        <RowStateCaption state="update-manually">
+          Conflict-aware source update
+        </RowStateCaption>,
+      );
+    }
 
     if (desktopInfo.updateDownloaded) {
       return row(
@@ -850,6 +869,97 @@ export function BbAppUpdateRows({
   }
 
   return row(name, settledStatus);
+}
+
+function shortCommit(value: string | null | undefined): string {
+  return value === null || value === undefined ? "unknown" : value.slice(0, 12);
+}
+
+function PersonalForkUpdateSection({
+  desktopInfo,
+}: {
+  desktopInfo: BbDesktopInfo;
+}) {
+  return (
+    <SettingsSection
+      title="bb Personal updates"
+      description="The official binary updater is disabled so an upstream release cannot silently replace your security patch."
+      action={
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1.5 px-2.5 text-xs"
+          onClick={() => openUrlInExternalBrowser(PERSONAL_UPDATE_WORKFLOW_URL)}
+        >
+          <Icon aria-hidden name="ExternalLink" className="size-3.5" />
+          Compatibility checks
+        </Button>
+      }
+    >
+      <div className="space-y-4 text-sm">
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="rounded-md border border-border bg-muted/20 px-3 py-2.5">
+            <p className="text-xs text-subtle-foreground">Personal build</p>
+            <code
+              title={desktopInfo.buildCommit ?? undefined}
+              className="mt-1 block font-mono text-xs text-foreground"
+            >
+              {shortCommit(desktopInfo.buildCommit)}
+            </code>
+          </div>
+          <div className="rounded-md border border-border bg-muted/20 px-3 py-2.5">
+            <p className="text-xs text-subtle-foreground">
+              Recorded upstream base
+            </p>
+            <code
+              title={desktopInfo.upstreamCommit ?? undefined}
+              className="mt-1 block font-mono text-xs text-foreground"
+            >
+              {shortCommit(desktopInfo.upstreamCommit)}
+            </code>
+          </div>
+        </div>
+        <ol className="grid gap-2 pl-5 text-xs leading-relaxed text-subtle-foreground">
+          <li>
+            Run{" "}
+            <code className="font-mono text-foreground">
+              pnpm personal:update:check
+            </code>
+            . It fetches upstream and stops with the conflicting paths if the
+            merge is not clean.
+          </li>
+          <li>
+            Review the proposed merge, then run{" "}
+            <code className="font-mono text-foreground">
+              pnpm personal:update:apply
+            </code>{" "}
+            only when the tree is clean.
+          </li>
+          <li>
+            Run the focused tests and{" "}
+            <code className="font-mono text-foreground">
+              pnpm --filter @bb/desktop package:personal
+            </code>
+            .
+          </li>
+          <li>
+            Quit both apps, keep the previous{" "}
+            <code className="font-mono text-foreground">bb Personal.app</code>{" "}
+            as rollback, and replace only the personal app.
+          </li>
+        </ol>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 text-xs font-medium text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground"
+          onClick={() => openUrlInExternalBrowser(PERSONAL_FORK_URL)}
+        >
+          Open the personal fork
+          <Icon aria-hidden name="ExternalLink" className="size-3.5" />
+        </button>
+      </div>
+    </SettingsSection>
+  );
 }
 
 interface MachineUpdatesRowsProps {
@@ -1386,6 +1496,10 @@ export function UpdatesSettingsSection({
   return (
     <div className="space-y-6">
       {showChangelogPreview ? <ChangelogPreviewCard /> : null}
+
+      {desktopInfo?.distribution === "personal" ? (
+        <PersonalForkUpdateSection desktopInfo={desktopInfo} />
+      ) : null}
 
       <MachineUpdatesFleetSection action={bulkActions}>
         {visibleMachines.length === 0 ? (
